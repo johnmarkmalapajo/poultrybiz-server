@@ -1,4 +1,4 @@
-const Flock = require('../Models/Flock');
+const Flock = require('../models/Flock');
 
 const getFlocks = async (req, res) => {
   try {

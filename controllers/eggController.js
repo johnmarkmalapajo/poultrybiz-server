@@ -1,4 +1,4 @@
-const EggHarvest = require('../Models/EggHarvest');
+const EggHarvest = require('../models/EggHarvest');
 
 // @desc    Get all egg harvests
 // @route   GET /api/eggs

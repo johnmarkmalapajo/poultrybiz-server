@@ -1,4 +1,4 @@
-const FeedStock = require('../Models/FeedStock');
+const FeedStock = require('../models/FeedStock');
 
 const getFeedStocks = async (req, res) => {
   try {
