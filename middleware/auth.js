@@ -1,6 +1,7 @@
-const jwt = require('jsonwebtoken');
+const jwt  = require('jsonwebtoken');
 const User = require('../models/User');
 
+// ── Protect — requires valid JWT ──
 const protect = async (req, res, next) => {
   let token;
 
@@ -14,11 +15,23 @@ const protect = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = await User.findById(decoded.id).select('-password');
+    req.user      = await User.findById(decoded.id).select('-password');
     next();
   } catch (error) {
     return res.status(401).json({ success: false, message: 'Token invalid or expired' });
   }
 };
 
-module.exports = { protect };
+// ── Admin only — restricts route to Admin role ──
+const adminOnly = (req, res, next) => {
+  if (req.user && req.user.role === 'Admin') {
+    next();
+  } else {
+    res.status(403).json({
+      success: false,
+      message: 'Access denied. Admin only.',
+    });
+  }
+};
+
+module.exports = { protect, adminOnly };

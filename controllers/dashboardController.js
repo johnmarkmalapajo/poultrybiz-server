@@ -7,23 +7,22 @@ const MortalityRecord= require('../models/MortalityRecord');
 
 const getDashboard = async (req, res) => {
   try {
-    const userId = req.user.id;
-    const now    = new Date();
+    const isAdmin = req.user.role === 'Admin';
+    const now     = new Date();
 
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
 
-    // ── 1. FLOCK STATS ──
-    const flocks = await Flock.find({ user: userId, isActive: true });
+    // ── 1. FLOCK STATS — all flocks (centralized) ──
+    const flocks = await Flock.find({ isActive: true });
     const currentFlockSize = flocks.reduce((sum, f) => sum + (f.currentQty || 0), 0);
     const avgProductiveRate = flocks.length
       ? (flocks.reduce((sum, f) => sum + (f.productiveRate || 0), 0) / flocks.length).toFixed(1)
       : 0;
 
-    // ── 2. MORTALITY ──
+    // ── 2. MORTALITY — all records this month ──
     const mortalityRecords = await MortalityRecord.find({
-      user: userId,
       date: { $gte: startOfMonth },
     });
     const totalDeadThisMonth = mortalityRecords.reduce(
@@ -33,16 +32,14 @@ const getDashboard = async (req, res) => {
       ? ((totalDeadThisMonth / (currentFlockSize + totalDeadThisMonth)) * 100).toFixed(1)
       : 0;
 
-    // ── 3. EGGS TODAY ──
+    // ── 3. EGGS TODAY — all harvests ──
     const todayHarvests = await EggHarvest.find({
-      user: userId,
       date: { $gte: startOfToday },
     });
     const totalEggsToday = todayHarvests.reduce((sum, h) => sum + (h.totalEggs || 0), 0);
 
     // ── 4. EGG SIZE DISTRIBUTION (this month) ──
     const monthlyHarvests = await EggHarvest.find({
-      user: userId,
       date: { $gte: startOfMonth },
     });
     const totalMonthEggs = monthlyHarvests.reduce((sum, h) => sum + (h.totalEggs || 0), 0);
@@ -55,7 +52,7 @@ const getDashboard = async (req, res) => {
         : 0;
     });
 
-    // ── 5. DAILY EGG HARVEST TREND (last 7 days) ──
+    // ── 5. DAILY EGG TREND (last 7 days) ──
     const last7Days = [];
     for (let i = 6; i >= 0; i--) {
       const dayStart = new Date();
@@ -64,29 +61,32 @@ const getDashboard = async (req, res) => {
       const dayEnd = new Date(dayStart);
       dayEnd.setDate(dayEnd.getDate() + 1);
       const dayHarvests = await EggHarvest.find({
-        user: userId,
         date: { $gte: dayStart, $lt: dayEnd },
       });
       const count = dayHarvests.reduce((sum, h) => sum + (h.totalEggs || 0), 0);
       last7Days.push({ date: dayStart.toISOString().split('T')[0], count });
     }
 
-    // ── 6. FINANCIALS ──
-    const salesRecords = await SalesRecord.find({
-      user: userId,
-      date: { $gte: startOfMonth },
-    });
-    const salesRevenue = salesRecords.reduce((sum, s) => sum + (s.totalAmount || 0), 0);
+    // ── 6. FINANCIALS — Admin only ──
+    let salesRevenue  = 0;
+    let totalExpenses = 0;
+    let netProfitLoss = 0;
 
-    const expensesRecords = await ExpensesRecord.find({
-      user: userId,
-      expenseDate: { $gte: startOfMonth },
-    });
-    const totalExpenses = expensesRecords.reduce((sum, e) => sum + (e.amount || 0), 0);
-    const netProfitLoss = salesRevenue - totalExpenses;
+    if (isAdmin) {
+      const salesRecords = await SalesRecord.find({
+        date: { $gte: startOfMonth },
+      });
+      salesRevenue = salesRecords.reduce((sum, s) => sum + (s.totalAmount || 0), 0);
 
-    // ── 7. FEED STOCK ──
-    const feedStocks = await FeedStock.find({ user: userId });
+      const expensesRecords = await ExpensesRecord.find({
+        expenseDate: { $gte: startOfMonth },
+      });
+      totalExpenses = expensesRecords.reduce((sum, e) => sum + (e.amount || 0), 0);
+      netProfitLoss = salesRevenue - totalExpenses;
+    }
+
+    // ── 7. FEED STOCK — all ──
+    const feedStocks  = await FeedStock.find({});
     const totalFeedKg = feedStocks.reduce((sum, f) => sum + (f.quantityKg || 0), 0);
 
     // ── 8. ALERTS ──
@@ -104,8 +104,8 @@ const getDashboard = async (req, res) => {
       data: {
         flock: {
           currentFlockSize,
-          productiveRate:  parseFloat(avgProductiveRate),
-          mortalityRate:   parseFloat(mortalityRate),
+          productiveRate: parseFloat(avgProductiveRate),
+          mortalityRate:  parseFloat(mortalityRate),
         },
         eggs: {
           totalEggsToday,

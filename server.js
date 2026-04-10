@@ -48,7 +48,7 @@ app.use(`${BASE}/expenses`,         require('./routes/expensesrecord'));
 // ── Health check ──
 app.get('/', (req, res) => {
   res.json({
-    message: '🐔 PoultryBriz API is running!',
+    message: 'PoultryBriz API is running!',
     version: VERSION,
     baseUrl: `/api/${VERSION}`,
   });
